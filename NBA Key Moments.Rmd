@@ -1,0 +1,200 @@
+---
+title: "Basketball Game Key moments Exploration (NBA 2021/22, Phoenix Suns)"
+author: "Nacho Krukovsky, email: nacho.krukovsky@gmail.com"
+date: '2022-05-10'
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Synopsis
+
+In this report we aim to determine the presence and impact of key moments on game outcomes based on the 2021/22 NBA regular season.
+We determine key moment as a moment from which the team increases or decreases the scoring rate. Our investigations are based on 'Phoenix Suns' games in the NBA 2021/22 regular season. All the raw data has been taken from [basketball-reference.com](https://www.basketball-reference.com/).
+
+### Preparations
+First we prepare environment for the investigation
+```{r message=FALSE, warning=FALSE}
+library(knitr)
+library('ggspectra')
+library("ggpmisc")
+library("lubridate")
+library(dplyr)
+library(ggplot2)
+```
+
+## Load and preprocessing data
+From the [Basketball reference site](https://www.basketball-reference.com/) we obtained game summary and detailed game logs of the regular season 2021/22. 
+```{r}
+gameLog <- readRDS("NBA2122.RData")
+```
+
+Game summary example:
+
+```{r echo = FALSE}
+knitr::kable(head(gameLog[[25]][[1]]), "simple")
+```
+
+
+Example of the game log with first 20 tracked events is presented below:
+
+```{r echo=FALSE}
+knitr::kable(gameLog[[25]][[2]][1:20,1:5], "simple")
+```
+
+
+## Explorations
+
+Observing the game log we calculate average points rate per minute for both teams called 'ppm1' and 'ppm2' and plot an average ppm graph. We omit first 120 seconds of each game as ppm in the beginning of the game has huge deviations and distorts trends.
+Considering our example ppm graph of Phoenix Suns in particular game is looking like:
+
+```{r}
+game_log_p <- gameLog[[25]][[2]] %>% filter(Time > 120)
+
+
+# Smooth raw data to a graph
+smt1 <- loess.smooth(game_log_p$Time, game_log_p$ppm1, span=0.2,
+                     degree = 2, evaluation = 100)
+plot(smt1, xlab = "Time", ylab = "Points per minute")
+```
+
+As we can see the graph is not straight. The pace of scoring had changed several times during the game. 
+We determine these moments as key moments.
+Now we mark them with red and green points:
+
+```{r echo= FALSE}
+smt1_frame <- data.frame(smt1$x, smt1$y)
+ggplot(data = smt1_frame, aes(x = smt1$x, y = smt1$y)) + geom_line() + stat_peaks(col = "red") + stat_valleys(col = "green") + labs(x = "Time", y = "Points per minute") 
+  
+```
+
+On the plot we see seven points plus the start and the end of the graph (total nine points).  
+This study does not take into account the key moments of the opponent, although this undoubtedly affects the result of the game as well. The causes of key moments is also the subject of another investigation. 
+In this report we're going to explore the impact of the number of key moments to the game results of Phoenix Suns.
+
+For this we calculate the number of key moments and win/loss flag for each Suns game in the regular season:
+
+
+
+```{r echo=FALSE, message=FALSE}
+library(plyr)
+# Filter teams by name (only when away)
+indexes = NULL
+
+i = 1
+while (i < length(gameLog))
+{
+  ii <- gameLog[[i]][["gameSummary"]]$team1 == "Phoenix Suns"  
+  indexes <- append(indexes, ii)
+  i = i+1
+}
+
+# Detect ID of games
+gameIds <- which(indexes == TRUE)
+
+# Create dataframe with all peaks in the season
+sPeaks = NULL
+i = 1
+ while (i < length(gameIds))
+ {
+   t1 <- cbind(gameLog[[gameIds[i]]]$gamePeaks, 
+               gameLog[[gameIds[i]]]$gameSummary,
+               gameId = gameIds[i])
+   sPeaks <- rbind(sPeaks, t1)
+   
+   i = i+1
+   t1 = NULL
+ }
+
+
+######################################################################
+# Filter teams by name (only when home)
+
+indexes = NULL
+
+i = 1
+while (i < length(gameLog))
+{
+  ii <- gameLog[[i]][["gameSummary"]]$team2 == "Phoenix Suns"  
+  indexes <- append(indexes, ii)
+  i = i+1
+}
+
+# Detect ID of games
+gameIds <- which(indexes == TRUE)
+
+
+# Cbind dataframe with all peaks in the season
+i = 1
+while (i < length(gameIds))
+{
+  t2 <- cbind(gameLog[[gameIds[i]]]$gamePeaks, 
+              gameLog[[gameIds[i]]]$gameSummary,
+              gameId = gameIds[i])
+  sPeaks <- rbind(sPeaks, t2)
+  
+  i = i+1
+  t2 = NULL
+}
+
+# Convert date time
+Sys.setlocale("LC_TIME", "English")
+sPeaks$date <- as.Date(sPeaks$date,"%I:%M %p, %B %d, %Y" )
+
+###################################################################
+# Explorations with Phoenix
+
+## Subset only Phx
+team1 <- subset(sPeaks, team=='Phoenix')
+
+# Set win flag
+
+sWinner <- ifelse ((team1$team1 == "Phoenix Suns" & team1$winner1 == 1)|(team1$team2 == "Phoenix Suns" & team1$winner2 == 1),
+        1, 0)
+# Add win flag to the data frame team1
+team1 <- cbind(team1, sWinner)
+
+
+
+
+# Create win table
+teamPeaks <- team1 %>% distinct(date, sWinner) %>%  arrange(date)
+teamPeaks <- cbind(teamPeaks, peakCount = count(team1$date)$freq)
+teamPeaks
+```
+
+Сheck the relationship between the number of key moments (peakCount) and wins/losses(sWinner) for the Suns:
+
+``` {r}
+# Create general linear model
+logPhx = glm(sWinner ~ peakCount, data = teamPeaks, family="binomial")
+summary(logPhx)
+# Plot model
+plot(teamPeaks$peakCount,logPhx$fitted,pch=19,col="steelblue",xlab="Key moments per game",ylab ="Win probability")
+```
+
+Finally we plot the win probability graph with confidence interval:
+
+```{r warning=FALSE, message=FALSE}
+# Plot base graph with confidence interval
+p3 <- ggplot(data = teamPeaks, aes(x = peakCount, y = sWinner)) 
+p3 <- p3 + geom_point(color = "steelblue", size = 4, alpha = 0.1)+ geom_smooth(method = "glm")
+p3 + labs(title = "Phoenix Suns, Season 2021/22", x = "Key moments per game", y = "Win probability")
+```
+
+The graph presents that increasing of key moments in the game decreases **from 85% to 55%** the win probability of the Phoenix Suns team in 2021/22 regular season.
+
+## Conclusions
+
+In general we can conclude that key moments exist in every game and its quantity have impact on the win probability.
+
+## Further investigations
+Subjects of investigations:
+
+- Impact of the other factors such as the opponent key moments, home/away game, team lineup and summary stats to the win/lose probability.
+
+- Investigation of the causes of key events.

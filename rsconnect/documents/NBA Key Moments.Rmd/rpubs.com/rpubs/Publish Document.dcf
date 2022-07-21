@@ -1,0 +1,11 @@
+name: Publish Document
+title:
+username:
+account: rpubs
+server: rpubs.com
+hostUrl: rpubs.com
+appId: https://api.rpubs.com/api/v1/document/902004/6c64d1591eb6401db3353bb121585a2f
+bundleId: https://api.rpubs.com/api/v1/document/902004/6c64d1591eb6401db3353bb121585a2f
+url: http://rpubs.com/ignatkrukovskiy/902004
+when: 1653632233.47589
+lastSyncTime: 1653632233.47589
