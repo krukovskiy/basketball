@@ -1,0 +1,118 @@
+---
+title: "Causes of game changers in Basketball"
+author: 'Nacho Krukovsky, email: nacho.krukovsky@gmail.com'
+date: "2022-07-21"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Synopsis
+
+In this report we continue exploration of key moments in basketball. In the [part one](https://rpubs.com/nachokrukovsky/baketballkeymoments) we defined the Key Moment and found all of the Phoenix Suns' key moments for the 2021/22 season. Now we will detect in-game events that caused a game changer on example of Phoenix Suns team.
+
+
+## Premises
+
+Basketball has produced a huge number of talented players: LeBron James, Kobe Bryant, Michael Jordan and many dozens of brilliant players. Entering the court, a star player can turn the tide of the game and save the team due to his individual superiority over the opponent. However, when both teams have star players, it becomes more difficult to predict the outcome of the match. And there are stars on every team in the NBA.
+Therefore we want to understand what events lead to a game changer. We want to find in-game events and phenomena that lead the team to success in order to improve the quality of the game and achieve new sports results
+
+## Data preprocessing
+All the raw data has been taken from [basketball-reference.com](https://www.basketball-reference.com/).
+In this report we use processed data obtained in the [part one](https://rpubs.com/nachokrukovsky/baketballkeymoments): a list of all game logs and summary statistics of all of the season 21/22 games in NBA. You can request the dataset by email.
+
+
+### 1. Prepare environment
+```{r message=FALSE, warning=FALSE}
+library(tidyr)
+library(dplyr)
+library(plyr)
+library(stringi)
+library(stringr)
+library(knitr)
+library(kableExtra)
+```
+
+
+### 2. Get original dataset
+
+```{r}
+gameLog <- readRDS("NBA2122.RData")
+```
+
+We aim to get a data frame with all collected peaks information. For that we take original set of all season game logs and extract all Phoenix Suns games. Initial dataset contains Key Points (peaks), trends, trends duration, trend strength and lots of additional information.
+The graph below explains what we have at the beginning of the exploration.
+
+```{r echo=FALSE, out.width='100%'}
+knitr::include_graphics('plot.png')
+```
+
+We want to study, what events happen at the time of the game key moment.
+
+### Create dataset with logs of  Key moments
+Since we are exploring Phoenix Suns games, we run a script over the whole dataset to get all Suns games and combine information in one data frame. We take all in-game events from the start of a trend (Key Point) plus 30 seconds after that. The following plot explains the main idea:
+```{r echo=FALSE, out.width='100%'}
+knitr::include_graphics('plot2.png')
+```
+
+The output dataframe contains following columns:
+
+```{r echo = FALSE}
+extPeaks = data.frame()
+extPeaks = readRDS("extpeaks.rds")
+str(extPeaks)
+```
+Now we have a log of all events, accompanying the positive and negative trends in the rate of scoring for the Suns during all the season.
+Let's take a look what happened in some cases. Consider a fragment of the game between Suns and Wizards that took place at 16 December 2021. In the 9th minute of the first quarter, the Suns begin a 5-minute spurt, during which the score changes from **18:20** in favor of the **Wizards** to **38:31** in favor of the **Suns**.
+
+During this spurt the Suns increased their points per minute rate (ppm) from **1.97 ** to **2.47**.
+
+Let's see what events were at the heart of this trend
+
+```{r  echo=FALSE}
+
+kable(extPeaks[extPeaks$date == "9:00 PM, December 16, 2021" & extPeaks$trend_strength > .5 & extPeaks$trend_strength < 2 , c("Time", "team_away", "team_home", "team1", "team2", "ppm1","ppm2", "score1","score2")]) %>%
+  kable_styling(full_width = FALSE) %>%
+  column_spec(3:4, width = "18em")
+```
+
+As we can see, the course of the game changed after a series of successful actions from the Suns. 
+
+Since we have such information about all the games in the season we can collect all events that were the predecessors of all of the game changers and calculate its impact to the game. Below the samples are presented with a breakdown by the type of trend, or its absence ("neutral" type)
+
+```{r echo=FALSE}
+stat_comp_all = data.frame()
+stat_comp_all = readRDS("stat.rds")
+stat_comp_all = stat_comp_all %>% arrange(freq_up, decreasing = TRUE) 
+stat_comp_all$prob_up[stat_comp_all$prob_up != 0] = round(stat_comp_all$prob_up, digits = 4)
+stat_comp_all$prob_down[stat_comp_all$prob_down != 0] = round(stat_comp_all$prob_down, digits = 4)
+kable(stat_comp_all[1:6,]) %>%
+  kable_styling(full_width = FALSE) %>%
+  column_spec(1, width = "18em")
+```
+As we can see, in J. McGee case, when he takes a rebound it causes an Up trend in **11** cases **(4%)**, a Down trend in **12** cases **(4.4%)**, and another **248** defensive rebounds of McGee didn't trigger any trend. On its own, this says little, but when combined with other events, we can get valuable results.
+
+Thus, we collect the probabilities of all events for a change the course of the game. The result is looking as follows
+
+```{r echo=FALSE, out.width='100%'}
+knitr::include_graphics('plot_zoom.png')
+```
+
+The plot shows the probabilities of influencing the course of the game for all events that occurred in the 21/22 season. The larger the number of samples, the smaller the probability spread and higher the confidence interval.
+
+The probability of any single event is not enough to predict the course of the game. However, we can create a predictive model to make predictions directly during the game which will help the team avoid falling into a losing streak and find tactical resources to win the game.
+
+## Conclusions
+We found in-game events that most often occur at Key Moments, on the basis of which we can build a predictive model to predict team success in a game.
+
+## Further investigations
+Subjects of investigations:
+
+- Develop a predictive model.
+- Impact of the other factors such as the opponent key moments, home/away game, team lineup and summary stats to the win/lose probability.
+
+
