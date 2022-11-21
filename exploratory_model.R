@@ -1,6 +1,7 @@
 library("lubridate")
 library(plyr)
 library(ggplot2)
+library(dplyr)
 # Explorations
 
 
