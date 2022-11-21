@@ -1,5 +1,5 @@
 
-# Load game logs from a file
+# Load game logs from a file.
 gameLog <- readRDS("NBA2122.RData")
 
 team_name = "Phoenix Suns"
